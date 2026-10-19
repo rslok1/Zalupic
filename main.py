@@ -24,8 +24,7 @@ from kivy.graphics import Color, Ellipse, Line, Rectangle, InstructionGroup
 from kivy.clock import Clock
 from kivy.uix.image import Image
 
-# Установка горизонтального разрешения по умолчанию для Kivy
-Window.size = (960, 540)
+
 
 # =============================================================
 # 📁 КОРРЕКТНЫЙ ПУТЬ ДЛЯ СОХРАНЕНИЙ НА УСТРОЙСТВЕ (ANDROID / ПК)
