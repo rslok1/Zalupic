@@ -1,0 +1,77 @@
+name: Build Android APK
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /opt/ghc
+          sudo rm -rf "/usr/local/share/boost"
+
+      - name: Clean Buildozer & pip cache (FULL)
+        run: |
+          rm -rf ~/.buildozer
+          rm -rf .buildozer
+          rm -rf /home/runner/.cache/pip
+          rm -rf /home/runner/.buildozer/android/platform/build-*
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y git zip unzip autoconf libtool pkg-config zlib1g-dev \
+            libncurses5-dev libncursesw5-dev libreadline-dev libsqlite3-dev libgdbm-dev \
+            libssl-dev libffi-dev liblzma-dev build-essential ccache
+
+      - name: Setup Android SDK manually
+        run: |
+          export ANDROID_HOME=/usr/local/lib/android/sdk
+          export ANDROID_SDK_ROOT=$ANDROID_HOME
+
+          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
+
+          $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager \
+            "platform-tools" \
+            "build-tools;33.0.2" \
+            "platforms;android-33" \
+            "ndk;25.2.9519653"
+
+          mkdir -p /home/runner/.buildozer/android/platform/
+          ln -sf "$ANDROID_HOME" /home/runner/.buildozer/android/platform/android-sdk
+
+          mkdir -p "$ANDROID_HOME/tools/bin"
+          printf '#!/bin/bash\nexec /usr/local/lib/android/sdk/cmdline-tools/latest/bin/sdkmanager "$@"\n' > "$ANDROID_HOME/tools/bin/sdkmanager"
+          chmod +x "$ANDROID_HOME/tools/bin/sdkmanager"
+
+      - name: Install Python dependencies and Buildozer
+        run: |
+          pip install --upgrade pip setuptools wheel
+          pip install git+https://github.com/kivy/buildozer.git
+          pip install "cython<3.0" virtualenv
+
+      - name: Build APK with Buildozer
+        run: echo y | buildozer -v android debug
+
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Chelik-Game-APK
+          path: bin/*.apk
