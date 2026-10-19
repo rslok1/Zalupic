@@ -27,17 +27,28 @@ from kivy.uix.image import Image
 # Установка горизонтального разрешения по умолчанию для Kivy
 Window.size = (960, 540)
 
-SAVE_FILE = "game_data.json"
+# =============================================================
+# 📁 КОРРЕКТНЫЙ ПУТЬ ДЛЯ СОХРАНЕНИЙ НА УСТРОЙСТВЕ (ANDROID / ПК)
+# =============================================================
+def get_save_file_path():
+    try:
+        from kivy.utils import platform
+        if platform == 'android':
+            from jnius import autoclass
+            PythonActivity = autoclass('org.kivy.android.PythonActivity')
+            activity = PythonActivity.mActivity
+            context = activity.getApplicationContext()
+            files_dir = context.getFilesDir().getAbsolutePath()
+            return os.path.join(files_dir, "game_data.json")
+    except Exception:
+        pass
+    return "game_data.json"
+
+SAVE_FILE = get_save_file_path()
 SOUND_FILE = "ston.mp3"
 
 # =============================================================
 # 🖼️ ЗАДНИЕ ФОНЫ И ИЗОБРАЖЕНИЕ МОНЕТЫ
-# - background_menu.png   (для меню и магазина)
-# - background_mode1.png  (для Режима 1: вертикальный)
-# - background_mode2.png  (для Режима 2: пирамиды)
-# - background_mode3.png  (для Режима 3: Земля/Атмосфера)
-# - background_space.png  (для Режима 3: Космос при высоте >= 1000 км)
-# - coin.png              (картинка для космических монет)
 # =============================================================
 BG_MENU_IMAGE = "menu.png"
 BG_MODE1_IMAGE = "bed.png"
@@ -51,22 +62,22 @@ MAX_BOOST_LEVEL = 10  # Максимальный уровень прокачки
 
 
 def apply_screen_background(widget, image_file):
-    """Добавляет индивидуальный фоновый рисунок или дефолтный цвет к холсту виджета."""
+    """Добавляет фоновый рисунок или дефолтный цвет к холсту виджета с учетом растяжения на весь экран."""
     with widget.canvas.before:
         if os.path.exists(image_file):
             widget.bg_color_inst = Color(1, 1, 1, 1)
-            widget.bg_rect_inst = Rectangle(source=image_file, pos=widget.pos, size=widget.size)
+            widget.bg_rect_inst = Rectangle(source=image_file, pos=(0, 0), size=Window.size)
         elif os.path.exists("background.png"):
             widget.bg_color_inst = Color(1, 1, 1, 1)
-            widget.bg_rect_inst = Rectangle(source="background.png", pos=widget.pos, size=widget.size)
+            widget.bg_rect_inst = Rectangle(source="background.png", pos=(0, 0), size=Window.size)
         else:
             widget.bg_color_inst = Color(*DEFAULT_BG_COLOR)
-            widget.bg_rect_inst = Rectangle(pos=widget.pos, size=widget.size)
+            widget.bg_rect_inst = Rectangle(pos=(0, 0), size=Window.size)
 
     def _update_bg(inst, value):
         if hasattr(widget, 'bg_rect_inst'):
-            widget.bg_rect_inst.pos = widget.pos
-            widget.bg_rect_inst.size = widget.size
+            widget.bg_rect_inst.pos = (0, 0)
+            widget.bg_rect_inst.size = Window.size
 
     widget.bind(pos=_update_bg, size=_update_bg)
 
@@ -103,7 +114,7 @@ def ensure_sound_file():
 ensure_sound_file()
 
 # -------------------------------------------------------------
-# 🎨 20 Скинов из магазина (ТОЛЬКО ДЛЯ ВТОРОГО ИГРОКА)
+# 🎨 20 Скинов из магазина
 # -------------------------------------------------------------
 SKINS = [
     {"name": "Классика", "color": (0.35, 0.75, 0.95, 1), "image": "orig.png"},
@@ -113,7 +124,6 @@ SKINS = [
     {"name": "Аметист", "color": (0.70, 0.30, 0.95, 1), "image": "5.png"},
     {"name": "Коралл", "color": (1.0, 0.45, 0.40, 1), "image": "6.png"},
     {"name": "Золото", "color": (0.10, 0.90, 0.85, 1), "image": "7.png"},
-
 ]
 
 
@@ -124,7 +134,6 @@ def get_skin_price(index):
 
 
 def get_boost_upgrade_price(level):
-    """Каждый уровень прокачки стоит +3 монеты, начиная от 1 (ур 1: 1, ур 2: 4, ур 3: 7...)."""
     return 1 + (level - 1) * 3
 
 
@@ -132,9 +141,10 @@ def get_boost_upgrade_price(level):
 # 💾 Сохранение и загрузка прогресса
 # -------------------------------------------------------------
 def load_game_data():
-    if os.path.exists(SAVE_FILE):
+    path = get_save_file_path()
+    if os.path.exists(path):
         try:
-            with open(SAVE_FILE, "r", encoding="utf-8") as f:
+            with open(path, "r", encoding="utf-8") as f:
                 data = json.load(f)
                 data["boost_level"] = min(data.get("boost_level", 1), MAX_BOOST_LEVEL)
                 return data
@@ -152,8 +162,9 @@ def load_game_data():
 
 
 def save_game_data(coins, unlocked_skins, equipped_skin, unlocked_modes, selected_mode, boost_level, high_score_alt):
+    path = get_save_file_path()
     try:
-        with open(SAVE_FILE, "w", encoding="utf-8") as f:
+        with open(path, "w", encoding="utf-8") as f:
             json.dump({
                 "coins": coins,
                 "unlocked_skins": unlocked_skins,
@@ -1088,7 +1099,6 @@ class SpaceGameWidget(Widget):
         self.is_dragging = False
         self.is_finished = False
 
-        # Режим свободного полета в космосе (на 10 уровне)
         self.is_roaming = False
         self.world_x = WORLD_WIDTH / 2.0
         self.world_y = WORLD_HEIGHT / 2.0
@@ -1097,7 +1107,6 @@ class SpaceGameWidget(Widget):
         self.move_input_x = 0.0
         self.move_input_y = 0.0
 
-        # Монеты в космосе
         self.space_coins = []
         self.coin_radius = 22.0
 
@@ -1126,7 +1135,6 @@ class SpaceGameWidget(Widget):
         Clock.schedule_interval(self.update, 1.0 / 60.0)
 
     def generate_space_coins(self):
-        """Создает монеты по космосу с поддержкой кастомной картинки coin.png."""
         if hasattr(self, 'space_coins'):
             for c in self.space_coins:
                 if 'group' in c and c['group'] in self.canvas.before.children:
@@ -1745,11 +1753,6 @@ class CustomScreenManager(ScreenManager):
         self.current = name
 
 
-class StreamlitAppPlaceholder:
-    """Заглушка, если приложение запущено в окружении Streamlit."""
-    pass
-
-
 class SlingshotApp(App):
     def build(self):
         data = load_game_data()
@@ -1775,10 +1778,13 @@ class SlingshotApp(App):
         self.sm.add_widget(ShopScreen(name='shop'))
         return self.sm
 
-    def play_hit_sound(self):
+    def play_hit_sound(self, *args):
         if self.hit_sound:
-            self.hit_sound.stop()
-            self.hit_sound.play()
+            try:
+                self.hit_sound.stop()
+                self.hit_sound.play()
+            except Exception:
+                pass
 
     def on_target_hit(self, reward=1):
         self.coins += reward
@@ -1787,8 +1793,11 @@ class SlingshotApp(App):
 
         if self.sm.has_screen('game'):
             self.sm.get_screen('game').update_coin_label()
-        if self.sm.has_screen('pyramid_game'):
-            self.sm.get_screen('pyramid_game').update_coin_label()
+        if self.sm.has_screen('pyramid_content') or self.sm.has_screen('pyramid_game'):
+            try:
+                self.sm.get_screen('pyramid_game').update_coin_label()
+            except Exception:
+                pass
 
     def save(self):
         save_game_data(
